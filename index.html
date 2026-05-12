@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>博物館 AI 導覽系統｜內部簡介 2026.05</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --ink: #312b24;
+      --ink-soft: #65594d;
+      --muted: #928677;
+      --paper: #f4eee3;
+      --paper-2: #ebe0cf;
+      --paper-3: #fffaf1;
+      --olive: #484835;
+      --olive-2: #676144;
+      --gold: #c4aa65;
+      --gold-2: #e6d39a;
+      --carmine: #8d352f;
+      --green: #4b6f48;
+      --rule: rgba(80, 66, 48, .16);
+      --shadow: 0 24px 70px rgba(54, 43, 30, .14);
+      --sans: "Noto Sans TC", "PingFang TC", -apple-system, BlinkMacSystemFont, sans-serif;
+      --serif: "Noto Serif TC", "Source Han Serif TC", "PingFang TC", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 6%, rgba(196, 170, 101, .16), transparent 30vw),
+        linear-gradient(180deg, #f7f0e4 0%, #efe4d2 100%);
+      color: var(--ink);
+      font-family: var(--serif);
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(49, 43, 36, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(49, 43, 36, .025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, .7), transparent 55%);
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .section {
+      width: min(1180px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 94px 0;
+    }
+
+    .section.wide {
+      width: min(1280px, calc(100% - 48px));
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--carmine);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .kicker::before {
+      content: "";
+      width: 28px;
+      height: 1px;
+      background: var(--gold);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(260px, 420px) minmax(280px, 1fr);
+      gap: 48px;
+      align-items: end;
+      margin-bottom: 42px;
+    }
+
+    .section-head h2 {
+      margin: 12px 0 0;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 17px;
+    }
+
+    .hero {
+      min-height: 80vh;
+      display: grid;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      background: #4a4431;
+      color: #f6ead0;
+    }
+
+    /* 做舊紙紋（radial dots，輕微噪點感）*/
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      background-image:
+        radial-gradient(rgba(240, 230, 204, .06) 1px, transparent 1px),
+        radial-gradient(rgba(240, 230, 204, .04) 1px, transparent 1px);
+      background-size: 3px 3px, 7px 7px;
+      background-position: 0 0, 2px 2px;
+      opacity: .9;
+    }
+
+    /* 六角格紋遮罩（中心鏤空對齊左側標題區，讓主體清楚）*/
+    .hero-lattice {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      background-image: url("data:image/svg+xml,%3Csvg width='40' height='69.28' viewBox='0 0 40 69.28' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 17.32L20 5.77l20 11.55v23.1L20 51.97 0 40.42V17.32zM20 5.77v11.55L0 28.87m40 0L20 17.32m0 34.65v-11.55L40 28.87M0 28.87l20 11.55' fill='none' stroke='%23F0E6CC' stroke-width='0.5' stroke-opacity='0.12'/%3E%3C/svg%3E");
+      -webkit-mask-image: radial-gradient(ellipse 45% 60% at 30% 50%, transparent 0, transparent 35%, black 100%);
+      mask-image: radial-gradient(ellipse 45% 60% at 30% 50%, transparent 0, transparent 35%, black 100%);
+    }
+
+    /* 雲紋 ✿ 邊框 */
+    .hero-cloud-border {
+      position: absolute;
+      inset: 18px;
+      border: 1px solid rgba(240, 230, 204, .2);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .hero-cloud-border::before,
+    .hero-cloud-border::after {
+      content: "✿";
+      position: absolute;
+      font-size: 32px;
+      line-height: 1;
+      color: rgba(240, 230, 204, .3);
+      font-family: serif;
+    }
+
+    .hero-cloud-border::before {
+      top: -18px;
+      left: -16px;
+    }
+
+    .hero-cloud-border::after {
+      bottom: -22px;
+      right: -16px;
+    }
+
+    /* 散佈鑽石 ◆ */
+    .hero-diamonds {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+      opacity: .4;
+      color: #f0e6cc;
+    }
+
+    .hero-diamonds span {
+      position: absolute;
+    }
+
+    .hero-inner {
+      width: min(1180px, calc(100% - 48px));
+      margin: 0 auto;
+      position: relative;
+      z-index: 5;
+      padding: 60px 0 80px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) 390px;
+      gap: 70px;
+      align-items: center;
+    }
+
+    .hero .eyebrow {
+      color: var(--gold-2);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .22em;
+    }
+
+    .hero h1 {
+      margin: 24px 0 24px;
+      font-size: clamp(30px, 6.2vw, 84px);
+      line-height: 1.08;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .hero .subtitle {
+      margin: 0;
+      max-width: 700px;
+      font-size: clamp(18px, 2.1vw, 28px);
+      line-height: 1.35;
+      color: rgba(246, 234, 208, .88);
+      font-weight: 600;
+    }
+
+    .hero .note {
+      margin-top: 34px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      color: rgba(246, 234, 208, .76);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .note span {
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      background: transparent;
+    }
+
+    .hero-card {
+      background: rgba(255, 250, 241, .1);
+      border: 1px solid rgba(230, 211, 154, .26);
+      border-radius: 18px;
+      backdrop-filter: blur(20px);
+      padding: 26px;
+      box-shadow: 0 28px 90px rgba(0, 0, 0, .2);
+    }
+
+    .hero-card h3 {
+      margin: 0 0 14px;
+      color: #fff7df;
+      font-size: 22px;
+    }
+
+    .hero-card p {
+      margin: 0;
+      color: rgba(246, 234, 208, .78);
+      font-size: 15px;
+    }
+
+    .pain-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+    }
+
+    .pain {
+      min-height: 270px;
+      padding: 24px 20px;
+      background: rgba(255, 250, 241, .72);
+      border: 1px solid var(--rule);
+      box-shadow: 0 10px 34px rgba(54, 43, 30, .06);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .pain .num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--ink);
+      color: var(--gold-2);
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .pain h3 {
+      margin: 24px 0 10px;
+      font-size: 20px;
+      line-height: 1.35;
+    }
+
+    .pain p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 14px;
+    }
+
+    .pain .link {
+      margin-top: 18px;
+      color: var(--carmine);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .axis-band {
+      width: min(1280px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 86px 0;
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .axis-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .axis {
+      background: var(--ink);
+      color: #f7ead0;
+      padding: 34px 30px 32px;
+      min-height: 430px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .axis:nth-child(2) {
+      background: #4c4935;
+    }
+
+    .axis:nth-child(3) {
+      background: #65403a;
+    }
+
+    .axis::after {
+      content: "";
+      position: absolute;
+      width: 180px;
+      height: 180px;
+      right: -70px;
+      bottom: -70px;
+      border: 1px solid rgba(230, 211, 154, .28);
+      border-radius: 50%;
+    }
+
+    .axis .label {
+      color: var(--gold-2);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .14em;
+    }
+
+    .axis h3 {
+      margin: 16px 0 22px;
+      font-size: 28px;
+      line-height: 1.28;
+    }
+
+    .axis ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .axis li {
+      position: relative;
+      padding: 9px 0 9px 20px;
+      color: rgba(247, 234, 208, .82);
+      font-size: 15px;
+    }
+
+    .axis li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 19px;
+      width: 7px;
+      height: 7px;
+      background: var(--gold-2);
+      transform: rotate(45deg);
+    }
+
+    .highlight {
+      display: grid;
+      grid-template-columns: minmax(360px, 1.04fr) minmax(320px, .96fr);
+      gap: 72px;
+      align-items: center;
+      padding: 70px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .highlight:nth-child(even) {
+      grid-template-columns: minmax(320px, .96fr) minmax(360px, 1.04fr);
+    }
+
+    .highlight:nth-child(even) .visual {
+      order: 2;
+    }
+
+    .highlight:nth-child(even) .copy {
+      order: 1;
+    }
+
+    .copy .index {
+      color: rgba(141, 53, 47, .18);
+      font-size: 92px;
+      line-height: .8;
+      font-weight: 900;
+    }
+
+    .copy h3 {
+      margin: 4px 0 18px;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.24;
+    }
+
+    .copy p {
+      color: var(--ink-soft);
+      margin: 0 0 13px;
+      font-size: 16px;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 9px 14px;
+      border-left: 4px solid var(--carmine);
+      background: rgba(255, 250, 241, .72);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .phone {
+      width: min(315px, 100%);
+      margin: 0 auto;
+      background: #171615;
+      border-radius: 42px;
+      padding: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .screen {
+      aspect-ratio: 9 / 18.8;
+      border-radius: 32px;
+      overflow: hidden;
+      background: var(--paper);
+      position: relative;
+    }
+
+    .screen::before {
+      content: "";
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 86px;
+      height: 18px;
+      background: #171615;
+      border-radius: 99px;
+      z-index: 2;
+    }
+
+    .huzai {
+      height: 100%;
+      padding: 58px 24px 24px;
+      text-align: center;
+      background: linear-gradient(180deg, var(--olive-2), var(--olive));
+      color: #f7ead0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .avatar {
+      width: 142px;
+      height: 142px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #b9d0a4;
+      border: 3px solid rgba(230, 211, 154, .55);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, .22);
+    }
+
+    .huzai .small {
+      color: var(--gold-2);
+      font-family: var(--sans);
+      font-size: 11px;
+      letter-spacing: .2em;
+      font-weight: 700;
+    }
+
+    .huzai h4 {
+      margin: 8px 0 12px;
+      font-size: 24px;
+    }
+
+    .speech {
+      margin: 0;
+      color: rgba(247, 234, 208, .85);
+      font-size: 13px;
+      line-height: 1.75;
+    }
+
+    .modes {
+      margin-top: 54px;
+      border: 1px solid rgba(230, 211, 154, .32);
+      border-radius: 24px;
+      padding: 7px 7px 12px;
+      background: rgba(255, 250, 241, .08);
+      font-family: var(--sans);
+    }
+
+    .mode-segment {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+
+    .mode-thumb {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: calc(50% - 2px);
+      border-radius: 18px;
+      background: rgba(230, 211, 154, .2);
+      box-shadow: inset 0 0 0 1px rgba(230, 211, 154, .22);
+      transform: translateX(0);
+      transition: transform .42s cubic-bezier(.45, .05, .2, 1);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .mode-segment[data-active="text"] .mode-thumb {
+      transform: translateX(calc(100% + 4px));
+    }
+
+    .mode-choice {
+      position: relative;
+      z-index: 1;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      min-height: 48px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      color: rgba(247, 234, 208, .72);
+      cursor: pointer;
+      transition: color .28s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .mode-choice:focus-visible {
+      outline: 2px solid rgba(230, 211, 154, .55);
+      outline-offset: 2px;
+    }
+
+    .mode-choice.active {
+      color: #fff4d7;
+    }
+
+    .mode-choice svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .mode-copy {
+      margin-top: 8px;
+      border-top: 1px solid rgba(230, 211, 154, .18);
+      padding: 12px 10px 2px;
+      color: rgba(247, 234, 208, .82);
+      font-family: var(--sans);
+      font-size: 12px;
+      line-height: 1.65;
+      text-align: center;
+    }
+
+    .mode-copy-title {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.5;
+      color: #fff4d7;
+    }
+
+    .mode-copy-body {
+      display: block;
+    }
+
+    .phone-pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .mini-phone {
+      background: #171615;
+      border-radius: 30px;
+      padding: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .mini-screen {
+      aspect-ratio: 9 / 18.8;
+      border-radius: 23px;
+      background: #f7f0e4;
+      padding: 24px 14px 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mini-title {
+      color: var(--carmine);
+      text-align: center;
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .12em;
+    }
+
+    .mini-context {
+      margin: 10px 0 14px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bubble {
+      max-width: 94%;
+      padding: 8px 10px;
+      border-radius: 16px;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .bubble.user {
+      align-self: flex-end;
+      background: var(--ink);
+      color: #fff4d7;
+      border-bottom-right-radius: 5px;
+    }
+
+    .bubble.bot {
+      align-self: flex-start;
+      background: #fffaf1;
+      color: var(--ink);
+      border-bottom-left-radius: 5px;
+    }
+
+    .input {
+      margin-top: 10px;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: var(--paper-2);
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 10px;
+    }
+
+    .mini-screen.live-mode {
+      background:
+        radial-gradient(circle at 50% 34%, rgba(141, 53, 47, .22), transparent 38%),
+        linear-gradient(180deg, #524e39 0%, #373326 100%);
+      color: #f7ead0;
+      text-align: center;
+      align-items: center;
+    }
+
+    .live-status {
+      margin-top: 6px;
+      color: var(--gold-2);
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .14em;
+    }
+
+    .live-orb {
+      width: 108px;
+      height: 108px;
+      margin: 36px auto 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 250, 241, .08);
+      border: 1px solid rgba(230, 211, 154, .5);
+      box-shadow: 0 0 0 12px rgba(230, 211, 154, .06);
+    }
+
+    .live-orb::before {
+      content: "";
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--gold-2);
+      box-shadow: 0 0 32px rgba(230, 211, 154, .55);
+    }
+
+    .wave {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      height: 44px;
+      margin-bottom: 20px;
+    }
+
+    .wave span {
+      width: 5px;
+      border-radius: 99px;
+      background: #f7ead0;
+      opacity: .85;
+    }
+
+    .wave span:nth-child(1) {
+      height: 16px;
+      opacity: .45;
+    }
+
+    .wave span:nth-child(2) {
+      height: 28px;
+      opacity: .7;
+    }
+
+    .wave span:nth-child(3) {
+      height: 38px;
+    }
+
+    .wave span:nth-child(4) {
+      height: 24px;
+      opacity: .65;
+    }
+
+    .wave span:nth-child(5) {
+      height: 18px;
+      opacity: .5;
+    }
+
+    .live-transcript {
+      width: 100%;
+      margin-top: auto;
+      padding: 13px 12px;
+      border-radius: 18px;
+      background: rgba(255, 250, 241, .1);
+      border: 1px solid rgba(230, 211, 154, .18);
+      color: rgba(247, 234, 208, .82);
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: left;
+    }
+
+    .live-control {
+      width: 100%;
+      margin-top: 10px;
+      border-radius: 999px;
+      padding: 8px 10px;
+      background: rgba(255, 250, 241, .12);
+      color: var(--gold-2);
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .1em;
+    }
+
+    .graph-card {
+      background: rgba(255, 250, 241, .72);
+      border: 1px solid var(--rule);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .graph {
+      width: 100%;
+      aspect-ratio: 1;
+    }
+
+    .admin {
+      background: #f7f0e4;
+      border: 1px solid #d9cdb8;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      font-family: var(--sans);
+    }
+
+    .admin-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #d8cbb5;
+      margin-bottom: 14px;
+    }
+
+    .admin-head .crumb {
+      color: #877866;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .12em;
+    }
+
+    .admin-head .title {
+      font-family: var(--serif);
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .chip {
+      border: 1px solid #d1b875;
+      border-radius: 4px;
+      color: #7a5418;
+      background: #f5e8c7;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      background: #fffaf1;
+      border: 1px solid #e0d5c2;
+      padding: 10px 8px;
+    }
+
+    .stat small {
+      display: block;
+      color: #8a7b68;
+      font-size: 9px;
+      letter-spacing: .08em;
+    }
+
+    .stat b {
+      display: block;
+      margin-top: 4px;
+      color: var(--ink);
+      font-size: 19px;
+      line-height: 1;
+    }
+
+    .heat {
+      margin: 13px 0;
+      background: #fffaf1;
+      border: 1px solid #e0d5c2;
+      padding: 12px;
+    }
+
+    .heat .row {
+      display: grid;
+      grid-template-columns: 34px repeat(7, 1fr);
+      gap: 3px;
+      margin-top: 5px;
+    }
+
+    .heat span {
+      min-height: 14px;
+      border-radius: 2px;
+      background: #e8ddc8;
+      color: #8a7b68;
+      font-size: 9px;
+    }
+
+    .heat .l2 {
+      background: #d7bf7c;
+    }
+
+    .heat .l3 {
+      background: #b88635;
+    }
+
+    .heat .l4 {
+      background: #8d352f;
+    }
+
+    .keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 12px 0;
+    }
+
+    .keywords span {
+      padding: 5px 8px;
+      background: #eee2ce;
+      border: 1px solid #d8cbb5;
+      color: var(--ink);
+      font-size: 11px;
+    }
+
+    .keywords .hot {
+      background: #f4dfb0;
+      color: #7a5418;
+    }
+
+    .rank {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .rank li {
+      display: grid;
+      grid-template-columns: 24px 1fr 48px;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-top: 1px solid #e0d5c2;
+      color: var(--ink-soft);
+      font-size: 11px;
+    }
+
+    .edit-grid {
+      display: grid;
+      grid-template-columns: 1.35fr .9fr;
+      gap: 12px;
+    }
+
+    .editor,
+    .artifact-list {
+      background: #fffaf1;
+      border: 1px solid #e0d5c2;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 14px;
+      background: #eadfca;
+      border-bottom: 1px solid #d8cbb5;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #8a7b68;
+    }
+
+    .tabs b {
+      color: var(--carmine);
+    }
+
+    .editor-body {
+      padding: 14px;
+      min-height: 150px;
+      font-family: var(--serif);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .editor-body .md {
+      color: var(--carmine);
+      font-weight: 700;
+    }
+
+    .artifact-list {
+      padding: 12px;
+    }
+
+    .artifact-list h4 {
+      margin: 0 0 8px;
+      font-family: var(--serif);
+      font-size: 14px;
+    }
+
+    .artifact-list p {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0;
+      padding: 7px 0;
+      border-top: 1px solid #e0d5c2;
+      color: var(--ink-soft);
+      font-size: 11px;
+    }
+
+    .artifact-list em {
+      font-style: normal;
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .toolbar button {
+      border: 1px solid #d8cbb5;
+      background: #fffaf1;
+      color: var(--ink);
+      padding: 7px 11px;
+      font: 700 12px var(--sans);
+    }
+
+    .toolbar .primary {
+      margin-left: auto;
+      background: var(--carmine);
+      color: #fff;
+      border-color: var(--carmine);
+    }
+
+    .layers {
+      display: grid;
+      gap: 14px;
+    }
+
+    .layer {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 24px;
+      align-items: center;
+      padding: 24px;
+      border: 1px solid var(--rule);
+      background: rgba(255, 250, 241, .78);
+      box-shadow: 0 10px 34px rgba(54, 43, 30, .06);
+    }
+
+    .layer:nth-child(2) {
+      background: #efe4d2;
+    }
+
+    .layer:nth-child(3) {
+      background: #e3d5b9;
+    }
+
+    .layer .label {
+      color: var(--carmine);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .12em;
+    }
+
+    .layer h3 {
+      margin: 0 0 4px;
+      font-size: 26px;
+    }
+
+    .layer p {
+      margin: 0;
+      color: var(--ink-soft);
+    }
+
+    .node-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin-top: 14px;
+    }
+
+    .node-stats b {
+      font-size: 26px;
+      color: var(--ink);
+    }
+
+    .node-stats span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .summary-line {
+      margin-top: 22px;
+      padding: 20px 24px;
+      background: var(--ink);
+      color: #f7ead0;
+      font-size: 18px;
+    }
+
+    .compare-wrap {
+      overflow-x: auto;
+      background: rgba(255, 250, 241, .78);
+      border: 1px solid var(--rule);
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      padding: 20px 18px;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+      text-align: center;
+    }
+
+    th {
+      font-size: 16px;
+      background: #f0e4d0;
+    }
+
+    td:first-child {
+      text-align: left;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    td.ours,
+    th.ours {
+      background: rgba(141, 53, 47, .08);
+    }
+
+    .good {
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .bad {
+      color: var(--carmine);
+      font-weight: 900;
+    }
+
+    .dash {
+      color: var(--muted);
+    }
+
+    .note {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 12px;
+    }
+
+    .future-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .future {
+      min-height: 260px;
+      padding: 28px;
+      background: var(--ink);
+      color: #f7ead0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .future:nth-child(2) {
+      background: #4c4935;
+    }
+
+    .future:nth-child(3) {
+      background: #65403a;
+    }
+
+    .future b {
+      color: var(--gold-2);
+      font-size: 44px;
+      line-height: 1;
+    }
+
+    .future h3 {
+      margin: 24px 0 12px;
+      font-size: 24px;
+      line-height: 1.35;
+    }
+
+    .future p {
+      margin: 0;
+      color: rgba(247, 234, 208, .82);
+    }
+
+    .footer {
+      padding: 54px 24px;
+      text-align: center;
+      background: #e5d8c2;
+      color: var(--ink-soft);
+      font-family: var(--sans);
+      font-size: 13px;
+    }
+
+    .footer::before {
+      content: "";
+      display: block;
+      width: min(360px, 68vw);
+      height: 1px;
+      margin: 0 auto 24px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .footer b {
+      display: block;
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 1080px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 36px;
+      }
+
+      .hero-card {
+        max-width: 540px;
+      }
+
+      .pain-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .axis-grid,
+      .future-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .highlight,
+      .highlight:nth-child(even) {
+        grid-template-columns: 1fr;
+        gap: 38px;
+      }
+
+      .highlight:nth-child(even) .visual {
+        order: 1;
+      }
+
+      .highlight:nth-child(even) .copy {
+        order: 2;
+      }
+
+      .stats {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 720px) {
+
+      .section,
+      .section.wide,
+      .axis-band,
+      .hero-inner {
+        width: min(100% - 32px, 1180px);
+      }
+
+      .section {
+        padding: 64px 0;
+      }
+
+      .section-head {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .hero-inner {
+        padding: 72px 0 92px;
+      }
+
+      .hero h1 {
+        font-size: clamp(25px, 7.3vw, 34px);
+      }
+
+      .hero-card {
+        display: none;
+      }
+
+      .pain-grid,
+      .phone-pair {
+        grid-template-columns: 1fr;
+      }
+
+      .pain {
+        min-height: auto;
+      }
+
+      .axis {
+        min-height: auto;
+      }
+
+      .copy .index {
+        font-size: 70px;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .edit-grid,
+      .layer {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar {
+        flex-wrap: wrap;
+      }
+
+      .toolbar .primary {
+        margin-left: 0;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      body::before,
+      .hero::after {
+        display: none;
+      }
+
+      .hero {
+        min-height: auto;
+        background: var(--olive);
+      }
+
+      .section,
+      .axis-band {
+        padding: 44px 0;
+      }
+
+      .highlight {
+        page-break-inside: avoid;
+      }
+
+      .phone,
+      .admin,
+      .compare-wrap,
+      .graph-card {
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="hero">
+    <div class="hero-lattice" aria-hidden="true"></div>
+    <div class="hero-cloud-border" aria-hidden="true"></div>
+    <div class="hero-diamonds" aria-hidden="true">
+      <span style="top: 16%; left: 11%; font-size: 9px;">◆</span>
+      <span style="top: 26%; right: 18%; font-size: 7px;">◆</span>
+      <span style="bottom: 28%; left: 22%; font-size: 11px;">◆</span>
+      <span style="bottom: 42%; right: 14%; font-size: 9px;">◆</span>
+      <span style="top: 54%; left: 6%; font-size: 7px;">◆</span>
+      <span style="top: 38%; right: 8%; font-size: 13px;">◆</span>
+      <span style="top: 72%; right: 30%; font-size: 8px;">◆</span>
+      <span style="top: 12%; right: 38%; font-size: 6px;">◆</span>
+    </div>
+    <div class="hero-inner">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">DEMO BREIF｜2026.05</div>
+          <h1>博物館 AI 導覽系統</h1>
+          <p class="subtitle">陪觀眾看好展覽，幫館方說好故事。</p>
+          <div class="note">
+            <span>#多元導覽互動</span>
+            <span>#館方說法不跑偏</span>
+            <span>#持續累積的知識資產</span>
+          </div>
+        </div>
+        <aside class="hero-card">
+          <h3>這不是把資料丟給 AI。</h3>
+          <p>這是一套把策展立場、文史知識、展品資料與觀眾互動整合起來的導覽系統。AI 只在館方給定的知識邊界內說話，讓觀眾問得到，也讓館方管得住。</p>
+        </aside>
+      </div>
+    </div>
+  </header>
+
+  <section class="section wide" id="why">
+    <div class="section-head">
+      <div>
+        <div class="kicker">01 Why</div>
+        <h2>為什麼做這個</h2>
+      </div>
+      <p>傳統語音導覽不是不好，而是它很難回應今天觀眾的差異、館方資料的厚度，以及展期中不斷冒出的真實問題。</p>
+    </div>
+    <div class="pain-grid">
+      <article class="pain">
+        <div>
+          <div class="num">1</div>
+          <h3>觀眾很不一樣</h3>
+          <p>有人只想聽，有問題不敢說出口；有人想要直接開口詢問，甚至拍照問，但傳統語音導覽只能單向播放固定內容。</p>
+        </div>
+        <div class="link">對應亮點 2</div>
+      </article>
+      <article class="pain">
+        <div>
+          <div class="num">2</div>
+          <h3>好資料看不到</h3>
+          <p>策展人整理的訪談、論文、口述史，常常留在資料夾裡，觀眾只看到很小一部分。</p>
+        </div>
+        <div class="link">對應亮點 1</div>
+      </article>
+      <article class="pain">
+        <div>
+          <div class="num">3</div>
+          <h3>很難知道觀眾在意什麼</h3>
+          <p>觀眾真正反覆追問的展品、人物與事件，過去多半只能靠現場觀察和經驗猜測。</p>
+        </div>
+        <div class="link">對應亮點 4</div>
+      </article>
+      <article class="pain">
+        <div>
+          <div class="num">4</div>
+          <h3>換展就歸零</h3>
+          <p>特展結束後，那批用心整理過的知識也跟著收進倉庫，很難成為下一檔展覽的基礎。</p>
+        </div>
+        <div class="link">對應亮點 3</div>
+      </article>
+      <article class="pain">
+        <div>
+          <div class="num">5</div>
+          <h3>內容更新卡住</h3>
+          <p>展期中想補一段說明、修正一個詞，往往還要等工程師、等版本、等部署。</p>
+        </div>
+        <div class="link">對應亮點 5</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="axis-band" id="intent">
+    <div class="section-head">
+      <div>
+        <div class="kicker">02 Intent</div>
+        <h2>核心初衷</h2>
+      </div>
+      <p>同一套系統，同時服務三件事：<br>讓觀眾問得到，讓館方知識活起來，讓後台看見觀眾真正的興趣。</p>
+    </div>
+    <div class="axis-grid">
+      <article class="axis">
+        <div class="label">AXIS 01</div>
+        <h3>觀眾的逛展好朋友</h3>
+        <ul>
+          <li>虎仔陪你逛，是館方專屬導覽角色。</li>
+          <li>不想開口，可以打字問；喜歡邊走邊聊，可以用講的。</li>
+          <li>看到展品不知道叫什麼，拍照就能接著問。</li>
+          <li>資料庫沒有的內容會明確說超出範圍，不會自己編。</li>
+        </ul>
+      </article>
+      <article class="axis">
+        <div class="label">AXIS 02</div>
+        <h3>館方的文史好幫手</h3>
+        <ul>
+          <li>訪談稿、論文、口述歷史，不再只是躺在資料夾裡。</li>
+          <li>史學顧問確認過的內容，變成可查、可問、可延伸的知識庫。</li>
+          <li>下一檔特展不用從零開始，而是站在這一檔的累積上繼續做。</li>
+        </ul>
+      </article>
+      <article class="axis">
+        <div class="label">AXIS 03</div>
+        <h3>後台的觀眾興趣雷達</h3>
+        <ul>
+          <li>知道哪件展品被問最多、哪個人物最常出現。</li>
+          <li>看見觀眾一直在問、但館方還沒準備好的內容缺口。</li>
+          <li>把展期中的真實提問，回饋到導覽修正與下一檔策展。</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="section wide" id="highlights">
+    <div class="section-head">
+      <div>
+        <div class="kicker">03 Highlights</div>
+        <h2>五個亮點</h2>
+      </div>
+      <p>對應痛點，真正有價值的亮點功能。</p>
+    </div>
+
+    <article class="highlight">
+      <div class="visual">
+        <div class="phone">
+          <div class="screen">
+            <div class="huzai">
+              <div class="avatar"><img src="static/personas/hu-zai.png" alt="虎仔"></div>
+              <div class="small">YOUR GUIDE</div>
+              <h4>虎仔</h4>
+              <p class="speech">歡迎來到《新時代大登臺》。我是虎仔，跟你一起逛這場關於「政治低氣壓下的流星」的展覽。</p>
+              <div class="modes">
+                <div class="mode-segment" data-active="text" role="tablist" aria-label="導覽互動模式">
+                  <span class="mode-thumb" aria-hidden="true"></span>
+                  <button type="button" class="mode-choice" data-mode="voice" role="tab" aria-selected="false"
+                    aria-label="用講的">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <path d="M12 19v3" />
+                    </svg>
+                  </button>
+                  <button type="button" class="mode-choice active" data-mode="text" role="tab" aria-selected="true"
+                    aria-label="打字問">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 20h9" />
+                      <path d="m16.5 3.5 4 4L8 20l-5 1 1-5 12.5-12.5Z" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="mode-copy">
+                  <span class="mode-copy-title">- 打字提問模式 -</span>
+                  <span class="mode-copy-body">有什麼問題都可以打字傳訊息給我喔！</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="copy">
+        <div class="index">01</div>
+        <h3>虎仔，館方角色IP：<br>館方專屬的導覽夥伴</h3>
+        <p>觀眾不是在跟陌生的 AI 工具聊天，而是在跟館方設計的角色互動。語氣、稱呼、開場方式，都能配合展覽與館方品牌。</p>
+        <p>語音導覽是一段錄音；虎仔則是一個會接話的導覽角色。觀眾問到哪裡，系統就從館方資料裡找根據，再用適合導覽的方式說出來。</p>
+        <span class="tag">語音導覽之後的進化：從「播放」變成「陪逛」</span>
+      </div>
+    </article>
+
+    <article class="highlight">
+      <div class="visual">
+        <div class="phone-pair">
+          <div class="mini-phone">
+            <div class="mini-screen">
+              <div class="mini-title">I 人觀眾</div>
+              <div class="mini-context">安靜站在展品前，慢慢打字問</div>
+              <div class="chat">
+                <div class="bubble user">演劇挺身隊是什麼？</div>
+                <div class="bubble bot">皇民化時期由總督府主導成立的劇團聯盟，時間大約在 1942 到 1945 年。</div>
+                <div class="bubble user">那他們是真的相信嗎？</div>
+                <div class="bubble bot">在「奉公」外衣下，劇人仍藏著自己的話語。</div>
+              </div>
+              <div class="input">輸入訊息...</div>
+            </div>
+          </div>
+          <div class="mini-phone">
+            <div class="mini-screen live-mode">
+              <div class="mini-title" style="color:#e6d39a;">E 人觀眾</div>
+              <div class="mini-context" style="color:rgba(247,234,208,.68);">邊走邊看，直接跟虎仔說話</div>
+              <div class="live-status">LIVE GUIDE</div>
+              <div class="live-orb"></div>
+              <div class="wave"><span></span><span></span><span></span><span></span><span></span></div>
+              <div class="live-transcript">「欸虎仔，這張照片是誰？這齣戲在講什麼？」</div>
+              <div class="live-control">語音連線中</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="copy">
+        <div class="index">02</div>
+        <h3>自由切換適合自己的導覽模式</h3>
+        <p>觀眾不再是聽完一段前往下一個展項，而是可以自由發問，延伸探索。想安靜地提問可以打字，也可以直接口頭暢問。</p>
+        <p>同一場展覽，可以長出很多種逛法。系統的任務不是逼觀眾照流程走，而是在不同逛展習慣之間接住他們。</p>
+        <span class="tag">文字、語音、拍照，三種入口都回到同一座館方知識庫</span>
+      </div>
+    </article>
+
+    <article class="highlight">
+      <div class="visual">
+        <div class="graph-card">
+          <svg class="graph" viewBox="0 0 480 480" role="img" aria-label="蔣渭水知識節點可被多檔展覽延用">
+            <line x1="240" y1="240" x2="240" y2="95" stroke="#c4aa65" stroke-width="3" />
+            <line x1="240" y1="240" x2="105" y2="360" stroke="#c4aa65" stroke-width="3" stroke-dasharray="8 7" />
+            <line x1="240" y1="240" x2="375" y2="360" stroke="#c4aa65" stroke-width="3" stroke-dasharray="8 7" />
+            <rect x="145" y="46" width="190" height="92" rx="4" fill="#f4eee3" stroke="#c4aa65" />
+            <text x="240" y="78" text-anchor="middle" font-family="Noto Sans TC" font-size="12"
+              fill="#8d352f">2025・本展</text>
+            <text x="240" y="105" text-anchor="middle" font-family="Noto Serif TC" font-size="18" font-weight="700"
+              fill="#312b24">新時代大登臺</text>
+            <text x="240" y="126" text-anchor="middle" font-family="Noto Sans TC" font-size="12"
+              fill="#4b6f48">已使用</text>
+            <rect x="18" y="322" width="174" height="86" rx="4" fill="#fffaf1" stroke="#c4aa65"
+              stroke-dasharray="5 4" />
+            <text x="105" y="354" text-anchor="middle" font-family="Noto Sans TC" font-size="12"
+              fill="#928677">假設未來</text>
+            <text x="105" y="380" text-anchor="middle" font-family="Noto Serif TC" font-size="17" font-weight="700"
+              fill="#312b24">文協百年特展</text>
+            <text x="105" y="400" text-anchor="middle" font-family="Noto Sans TC" font-size="12"
+              fill="#8d352f">可延用</text>
+            <rect x="288" y="322" width="174" height="86" rx="4" fill="#fffaf1" stroke="#c4aa65"
+              stroke-dasharray="5 4" />
+            <text x="375" y="354" text-anchor="middle" font-family="Noto Sans TC" font-size="12"
+              fill="#928677">假設未來</text>
+            <text x="375" y="380" text-anchor="middle" font-family="Noto Serif TC" font-size="17" font-weight="700"
+              fill="#312b24">日治大稻埕生活史</text>
+            <text x="375" y="400" text-anchor="middle" font-family="Noto Sans TC" font-size="12"
+              fill="#8d352f">可延用</text>
+            <circle cx="240" cy="240" r="68" fill="#312b24" />
+            <circle cx="240" cy="240" r="68" fill="none" stroke="#c4aa65" stroke-width="3" />
+            <text x="240" y="225" text-anchor="middle" font-family="Noto Sans TC" font-size="12" fill="#e6d39a">CORE
+              NODE</text>
+            <text x="240" y="253" text-anchor="middle" font-family="Noto Serif TC" font-size="24" font-weight="900"
+              fill="#fff4d7">蔣渭水</text>
+            <text x="240" y="278" text-anchor="middle" font-family="Noto Sans TC" font-size="12"
+              fill="#e6d39a">1890-1931</text>
+            <text x="240" y="454" text-anchor="middle" font-family="Noto Serif TC" font-size="15"
+              fill="#65594d">一個歷史節點，多檔展覽共用</text>
+          </svg>
+        </div>
+      </div>
+      <div class="copy">
+        <div class="index">03</div>
+        <h3>每檔特展，讓館方知識庫變厚</h3>
+        <p>蔣渭水這個人物節點，這檔展能用，下一檔關於文協、大稻埕或日治時期社會運動的展也能用。</p>
+        <p>館員與策展團隊花時間整理好的史實、年代、人物關係與顧問確認內容，不會跟著展覽結束而消失。</p>
+        <span class="tag">每次策展不是消耗資料，而是在累積館方資產</span>
+      </div>
+    </article>
+
+    <article class="highlight">
+      <div class="visual">
+        <div class="admin">
+          <div class="admin-head">
+            <span class="crumb">ADMIN DASHBOARD</span>
+            <span class="title">觀眾興趣雷達</span>
+            <span class="chip">即時</span>
+          </div>
+          <div class="stats">
+            <div class="stat"><small>今日 Sessions</small><b>142</b></div>
+            <div class="stat"><small>平均時長</small><b>8.4</b></div>
+            <div class="stat"><small>Live / Chat</small><b>46 / 96</b></div>
+            <div class="stat"><small>即時在線</small><b>7</b></div>
+            <div class="stat"><small>本週 Total</small><b>894</b></div>
+          </div>
+          <div class="heat">
+            <b>每週使用熱力圖</b>
+            <div class="row"><span>上午</span><span></span><span class="l2"></span><span></span><span
+                class="l2"></span><span class="l3"></span><span class="l4"></span><span class="l4"></span></div>
+            <div class="row"><span>下午</span><span class="l2"></span><span class="l3"></span><span
+                class="l2"></span><span class="l3"></span><span class="l4"></span><span class="l4"></span><span
+                class="l3"></span></div>
+            <div class="row"><span>傍晚</span><span></span><span class="l2"></span><span></span><span
+                class="l2"></span><span class="l3"></span><span class="l3"></span><span class="l2"></span></div>
+          </div>
+          <div class="keywords">
+            <span class="hot">張維賢 87</span>
+            <span class="hot">政治低氣壓 64</span>
+            <span>皇民化 52</span>
+            <span>《閹雞》斷電 41</span>
+            <span>林獻堂 38</span>
+            <span>文協 29</span>
+          </div>
+          <ol class="rank">
+            <li><b>1</b><span>《閹雞》劇照（1943 厚生演劇研究會）</span><b>112</b></li>
+            <li><b>2</b><span>演劇挺身隊合影</span><b>86</b></li>
+            <li><b>3</b><span>民烽演劇研究會成立紀念照</span><b>63</b></li>
+          </ol>
+        </div>
+      </div>
+      <div class="copy">
+        <div class="index">04</div>
+        <h3>後台觀眾興趣雷達</h3>
+        <p>哪件展品被問最多次、哪些人物最常被提起、哪個時段互動最熱，後台都能看見。</p>
+        <p>這不是為了追求漂亮數字，而是幫館方看見內容缺口：觀眾一直問，但我們還沒有準備好回答的地方。</p>
+        <span class="tag">用真實提問修正導覽，也回饋下一檔策展方向</span>
+      </div>
+    </article>
+
+    <article class="highlight">
+      <div class="visual">
+        <div class="admin">
+          <div class="admin-head">
+            <span class="crumb">ADMIN CURATOR</span>
+            <span class="title">策展內容編輯</span>
+            <span class="chip">編輯中</span>
+          </div>
+          <div class="edit-grid">
+            <div class="editor">
+              <div class="tabs"><b>寫作</b><span>預覽</span><span>歷史版本</span></div>
+              <div class="editor-body">
+                <p><span class="md">## 關於演劇挺身隊</span></p>
+                <p>皇民化時期由總督府主導成立的劇團聯盟，表面上是「奉公」的宣傳機制。</p>
+                <p><span class="md">[策展詮釋]</span> 本展認為，在「奉公」外衣下，劇人們仍藏著自己的話語想說。</p>
+              </div>
+            </div>
+            <div class="artifact-list">
+              <h4>展品清單</h4>
+              <p><span>演劇挺身隊合影</span><em>已發布</em></p>
+              <p><span>民烽紀念照</span><em>已發布</em></p>
+              <p><span>《閹雞》劇照</span><em style="color:#8d352f">待審</em></p>
+              <p><span>霧峰演劇</span><em style="color:#928677">草稿</em></p>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button>儲存</button>
+            <button>送審</button>
+            <button>發布</button>
+            <button class="primary">重新索引 RAG</button>
+          </div>
+        </div>
+      </div>
+      <div class="copy">
+        <div class="index">05</div>
+        <h3>可編修內容的後台</h3>
+        <p>館員可以自己更新策展論述、展品說明與補充資料。展期中發現觀眾一直問某個問題，就能補內容，不必每次等工程師。</p>
+        <p>內容有草稿、待審、已發布等狀態；改完重新索引，下一位觀眾就能問到更新後的版本。</p>
+        <span class="tag">滾動式修正，不是上線一次就定終身</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="section" id="how">
+    <div class="section-head">
+      <div>
+        <div class="kicker">04 How</div>
+        <h2>系統怎麼運作</h2>
+      </div>
+      <p>三層知識架構讓 AI 不會把「史實」和「策展詮釋」混在一起，也讓換展時不必推倒重來。</p>
+    </div>
+    <div class="layers">
+      <article class="layer">
+        <div class="label">LAYER 03</div>
+        <div>
+          <h3>展覽敘事層</h3>
+          <p>每檔特展自己的故事線、展品說明、策展立場與導覽角色。換展時主要替換這一層。</p>
+        </div>
+      </article>
+      <article class="layer">
+        <div class="label">LAYER 02</div>
+        <div>
+          <h3>知識關係層</h3>
+          <p>人物、事件、組織、概念之間的關係，並標注 confidence / stance，讓 AI 知道哪些能直說、哪些要說「本展認為」。</p>
+        </div>
+      </article>
+      <article class="layer">
+        <div class="label">LAYER 01</div>
+        <div>
+          <h3>核心歷史層</h3>
+          <p>跨展共用的館方知識庫，經過整理後可長期累積、反覆延用。</p>
+          <div class="node-stats">
+            <span><b>32</b> 人物</span>
+            <span><b>45</b> 組織</span>
+            <span><b>15</b> 事件</span>
+            <span><b>27</b> 概念</span>
+            <span><b>21</b> 地點</span>
+          </div>
+        </div>
+      </article>
+    </div>
+    <div class="summary-line">底下兩層是館方知識庫，上層每檔特展自己換；知識越做越厚，展覽越換越快。</div>
+  </section>
+
+  <section class="section" id="compare">
+    <div class="section-head">
+      <div>
+        <div class="kicker">05 Compare</div>
+        <h2>跟其他做法的比較</h2>
+      </div>
+      <p>保留傳統導覽的可靠性，同時補上互動、累積與館方/策展團隊的文史研究轉譯能力。</p>
+    </div>
+    <div class="compare-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>傳統語音導覽</th>
+            <th>一般 AI 聊天工具</th>
+            <th class="ours">本系統</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>會不會亂講話</td>
+            <td><span class="good">不會</span><span class="note">因為內容預錄</span></td>
+            <td><span class="bad">可能會</span><span class="note">容易用外部知識補空白</span></td>
+            <td class="ours"><span class="good">不會</span><span class="note">資料庫沒有就說沒有</span></td>
+          </tr>
+          <tr>
+            <td>能不能聽懂不同問法</td>
+            <td><span class="bad">不能</span><span class="note">只能照編號聽</span></td>
+            <td><span class="good">能</span><span class="note">能理解語意</span></td>
+            <td class="ours"><span class="good">能</span><span class="note">文字、語音、照片都能接</span></td>
+          </tr>
+          <tr>
+            <td>結束後館方留得下東西嗎</td>
+            <td><span class="bad">有限</span><span class="note">主要留下錄音與文稿</span></td>
+            <td><span class="bad">不一定</span><span class="note">不以館方知識資產為核心</span></td>
+            <td class="ours"><span class="good">留得下</span><span class="note">變成人物、事件、展品節點</span></td>
+          </tr>
+          <tr>
+            <td>換展要不要重做</td>
+            <td><span class="bad">多半重做</span><span class="note">錄音、文案、流程重來</span></td>
+            <td><span class="dash">不適用</span><span class="note">沒有展覽模組概念</span></td>
+            <td class="ours"><span class="good">只換上層</span><span class="note">核心歷史層持續延用</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section wide" id="future">
+    <div class="section-head">
+      <div>
+        <div class="kicker">06 Next</div>
+        <h2>未來想像</h2>
+      </div>
+      <p>當系統穩定後，它不只是一檔展覽的 demo，而會變成館方長期累積知識與理解觀眾的基礎設施。</p>
+    </div>
+    <div class="future-grid">
+      <article class="future">
+        <b>01</b>
+        <h3>下一檔特展，可以接著做</h3>
+        <p>不用從頭再來。這檔展累積的人物、事件、概念節點，下檔特展能直接延用。</p>
+      </article>
+      <article class="future">
+        <b>02</b>
+        <h3>觀眾真正在乎什麼，看數據就知道</h3>
+        <p>不用憑感覺猜。觀眾的提問、停留與互動，能回饋導覽內容與策展方向。</p>
+      </article>
+      <article class="future">
+        <b>03</b>
+        <h3>策展人換人，知識不會跟著走</h3>
+        <p>累積下來的結構化知識留在館方，新團隊能從前人的成果上繼續長。</p>
+      </article>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <b>博物館 AI 導覽系統</b>
+    <div>內部簡介｜Demo 2026.05｜Curatorial GraphRAG</div>
+    <div>版本：museum_ai_internal_brief.html｜聯絡窗口：館方專案負責人 / 技術團隊</div>
+  </footer>
+
+  <script>
+    (function () {
+      const MESSAGES = {
+        voice: {
+          title: '- 語音提問模式 -',
+          body: '直接跟我說話，我會聽你問問題喔！'
+        },
+        text: {
+          title: '- 打字提問模式 -',
+          body: '有什麼問題都可以打字傳訊息給我喔！'
+        }
+      };
+
+      document.querySelectorAll('.modes').forEach((modes) => {
+        const segment = modes.querySelector('.mode-segment');
+        const choices = modes.querySelectorAll('.mode-choice');
+        const copyTitle = modes.querySelector('.mode-copy-title');
+        const copyBody = modes.querySelector('.mode-copy-body');
+        if (!segment || !choices.length) return;
+
+        const applyMode = (mode) => {
+          if (!MESSAGES[mode]) return;
+          segment.dataset.active = mode;
+          choices.forEach((choice) => {
+            const isActive = choice.dataset.mode === mode;
+            choice.classList.toggle('active', isActive);
+            choice.setAttribute('aria-selected', isActive ? 'true' : 'false');
+          });
+          if (copyTitle) copyTitle.textContent = MESSAGES[mode].title;
+          if (copyBody) copyBody.textContent = MESSAGES[mode].body;
+        };
+
+        choices.forEach((choice) => {
+          choice.addEventListener('click', () => applyMode(choice.dataset.mode));
+        });
+      });
+    })();
+  </script>
+</body>
+
+</html>
