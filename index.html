@@ -1239,6 +1239,100 @@
       margin-bottom: 8px;
     }
 
+    /* 右側點點導航 — 滑過 hero 後現身 */
+    .dot-nav {
+      position: fixed;
+      right: 28px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .35s ease;
+    }
+
+    .dot-nav.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .dot-nav ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .dot-nav li {
+      position: relative;
+    }
+
+    .dot-nav a {
+      display: block;
+      padding: 6px;
+      text-decoration: none;
+    }
+
+    .dot-nav-dot {
+      display: block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 1.5px solid var(--ink-soft);
+      background: transparent;
+      transition: background .25s ease, border-color .25s ease, transform .25s ease;
+    }
+
+    .dot-nav a::before {
+      content: attr(data-label);
+      position: absolute;
+      right: calc(100% + 4px);
+      top: 50%;
+      padding: 6px 12px;
+      background: rgba(49, 43, 36, .9);
+      color: #f6ead0;
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%) translateX(8px);
+      transition: opacity .25s ease, transform .25s ease;
+    }
+
+    .dot-nav a:hover::before,
+    .dot-nav a:focus-visible::before {
+      opacity: 1;
+      transform: translateY(-50%) translateX(0);
+    }
+
+    .dot-nav a:hover .dot-nav-dot,
+    .dot-nav a:focus-visible .dot-nav-dot {
+      background: var(--carmine);
+      border-color: var(--carmine);
+      transform: scale(1.25);
+    }
+
+    .dot-nav a.is-active .dot-nav-dot {
+      background: var(--carmine);
+      border-color: var(--carmine);
+      transform: scale(1.35);
+    }
+
+    /* anchor 跳轉時讓區塊上緣不會卡頂端 */
+    section[id] {
+      scroll-margin-top: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .dot-nav { display: none; }
+    }
+
     @media (max-width: 1080px) {
       .hero-grid {
         grid-template-columns: 1fr;
@@ -1466,6 +1560,17 @@
 </head>
 
 <body>
+
+  <aside class="dot-nav" aria-label="頁面導航">
+    <ul>
+      <li><a href="#why" data-label="01　為什麼"><span class="dot-nav-dot" aria-hidden="true"></span></a></li>
+      <li><a href="#intent" data-label="02　核心初衷"><span class="dot-nav-dot" aria-hidden="true"></span></a></li>
+      <li><a href="#highlights" data-label="03　五個亮點"><span class="dot-nav-dot" aria-hidden="true"></span></a></li>
+      <li><a href="#how" data-label="04　運作方式"><span class="dot-nav-dot" aria-hidden="true"></span></a></li>
+      <li><a href="#compare" data-label="05　比較"><span class="dot-nav-dot" aria-hidden="true"></span></a></li>
+      <li><a href="#future" data-label="06　未來想像"><span class="dot-nav-dot" aria-hidden="true"></span></a></li>
+    </ul>
+  </aside>
 
   <header class="hero">
     <div class="hero-lattice" aria-hidden="true"></div>
@@ -1987,6 +2092,45 @@
           choice.addEventListener('click', () => applyMode(choice.dataset.mode));
         });
       });
+    })();
+
+    // 右側點點導航：滑過 hero 後現身，並自動高亮目前所在區塊
+    (function () {
+      const nav = document.querySelector('.dot-nav');
+      if (!nav) return;
+      const links = nav.querySelectorAll('a');
+      const sections = Array.from(links)
+        .map((link) => document.querySelector(link.getAttribute('href')))
+        .filter(Boolean);
+      const hero = document.querySelector('.hero');
+
+      if (hero && 'IntersectionObserver' in window) {
+        const heroObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              nav.classList.toggle('is-visible', !entry.isIntersecting);
+            });
+          },
+          { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
+        );
+        heroObserver.observe(hero);
+      }
+
+      if ('IntersectionObserver' in window) {
+        const sectionObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              const id = entry.target.id;
+              links.forEach((link) => {
+                link.classList.toggle('is-active', link.getAttribute('href') === '#' + id);
+              });
+            });
+          },
+          { rootMargin: '-40% 0px -55% 0px', threshold: 0 }
+        );
+        sections.forEach((sec) => sectionObserver.observe(sec));
+      }
     })();
   </script>
 </body>
